@@ -3,7 +3,7 @@ import { type Market } from "@/app/api/markets/route";
 
 async function getMarkets(): Promise<Market[]> {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/api/markets?limit=12&active=true`,
+    `${process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/api/markets`,
     { next: { revalidate: 60 } }
   );
 

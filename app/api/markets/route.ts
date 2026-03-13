@@ -52,19 +52,27 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
 
-    // Pass-through supported Polymarket query params
     const params = new URLSearchParams();
-    const allowed = ["limit", "offset", "order", "ascending", "active", "closed", "archived", "category"];
+
+    // Defaults: active only, sorted by volume descending
+    params.set("active", searchParams.get("active") ?? "true");
+    params.set("closed", searchParams.get("closed") ?? "false");
+    params.set("archived", searchParams.get("archived") ?? "false");
+    params.set("order", searchParams.get("order") ?? "volume24hr");
+    params.set("ascending", searchParams.get("ascending") ?? "false");
+    params.set("limit", searchParams.get("limit") ?? "20");
+
+    const allowed = ["offset", "category"];
     for (const key of allowed) {
       const val = searchParams.get(key);
       if (val !== null) params.set(key, val);
     }
 
-    const url = `${POLYMARKET_API}${params.size ? `?${params}` : ""}`;
+    const url = `${POLYMARKET_API}?${params}`;
 
     const res = await fetch(url, {
       headers: { "Content-Type": "application/json" },
-      next: { revalidate: 60 }, // cache for 60s
+      next: { revalidate: 60 },
     });
 
     if (!res.ok) {
@@ -75,7 +83,10 @@ export async function GET(req: NextRequest) {
     }
 
     const raw: Record<string, unknown>[] = await res.json();
-    const markets: Market[] = raw.map(parseMarket);
+
+    const markets: Market[] = raw
+      .map(parseMarket)
+      .filter((m) => m.volume24hr > 0 || m.liquidity > 0); // drop dead markets
 
     return NextResponse.json({ markets, count: markets.length });
   } catch (err) {

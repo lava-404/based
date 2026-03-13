@@ -1,6 +1,8 @@
 import { Button } from "./ui/button";
+import { BitGo } from "bitgo";
 
 export function Navbar() {
+  
   return (
     <nav className="flex items-center justify-between px-6 h-14 border border-border rounded-xl bg-background max-w-6xl mx-auto">
 
@@ -19,7 +21,7 @@ export function Navbar() {
 
       <div className="flex items-center gap-2">
         <a href="/login">
-          <Button variant="outline" size="sm">Log in</Button>
+          <Button variant="outline" size="sm" >Log in</Button>
         </a>
         <a href="/signup">
           <Button variant="default" size="sm">Sign up</Button>
