@@ -1,44 +1,19 @@
-import { CardSmall } from "@/components/SmallCard";
-import { type Market } from "@/app/api/markets/route";
+import CTA from "@/components/Cta";
+import FeatureCards from "@/components/Features";
+import Footer from "@/components/Footer";
+import Hero from "@/components/Hero";
 
-async function getMarkets(): Promise<Market[]> {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/api/markets?limit=16&active=true`,
-    { next: { revalidate: 60 } }
-  );
+import HowItWorks from "@/components/HowItWorks";
 
-  if (!res.ok) return [];
-  const { markets } = await res.json();
-  return markets;
-}
-
-export default async function Home() {
-  const markets = await getMarkets();
-
+export default function Page() {
   return (
-    <main className="min-h-screen px-6 py-12">
-      <div className="max-w-6xl mx-auto">
-
-        <div className="mb-10">
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-            Markets
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {markets.length} active markets
-          </p>
-        </div>
-
-        {markets.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No markets found.</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {markets.map((market) => (
-              <CardSmall key={market.id} market={market} />
-            ))}
-          </div>
-        )}
-
-      </div>
+    <main className="w-full overflow-x-hidden flex items-center justify-center flex-col">
+      <Hero/>
+      <div className="absolute inset-0 -z-10 w-[100vw] h-[30rem] bg-[url('/image1.png')] bg-contain bg-center bg-no-repeat mt-115" />
+      <FeatureCards />
+      <HowItWorks />
+      <CTA />
+      <Footer />
     </main>
-  );
+  )
 }
