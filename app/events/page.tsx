@@ -1,5 +1,6 @@
 import { CardSmall } from "@/components/SmallCard";
 import { type Market } from "@/app/api/markets/route";
+import Link from "next/link";
 
 async function getMarkets(): Promise<Market[]> {
   const res = await fetch(
@@ -31,9 +32,16 @@ export default async function Home() {
         {markets.length === 0 ? (
           <p className="text-muted-foreground text-sm">No markets found.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 cursor-pointer">
             {markets.map((market) => (
-              <CardSmall key={market.id} market={market} />
+              <Link
+              key={market.id}
+              href={`/events/${market.slug}`}
+              className="block"
+              >
+                <CardSmall key={market.id} market={market} />
+              </Link>
+              
             ))}
           </div>
         )}

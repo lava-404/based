@@ -1,4 +1,4 @@
-import { Market } from "@/app/api/polymarket";
+import { Market } from "@/app/api/markets/route";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import Image from "next/image";
@@ -57,7 +57,7 @@ export function CardSmall({ market }: Props) {
     outcomes[1].toLowerCase() === "no";
 
   return (
-    <Card className="w-full bg-card border-border rounded-xl overflow-hidden hover:border-primary/40 transition-colors">
+    <Card className="w-full h-full flex flex-col bg-card border-border rounded-xl overflow-hidden hover:border-primary/40 transition-colors">
       <CardHeader className="pb-2 pt-4 px-4">
         <div className="flex items-start gap-3">
           {market.icon ? (
@@ -81,7 +81,7 @@ export function CardSmall({ market }: Props) {
         </div>
       </CardHeader>
 
-      <CardContent className="px-4 pb-0">
+      <CardContent className="px-4 pb-0 flex-1">
         {isBinary ? (
           <OutcomeRow label={outcomes[0]} price={prices[0]} />
         ) : (

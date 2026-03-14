@@ -1,14 +1,8 @@
 import { Button } from "./ui/button";
 import { BitGo } from "bitgo";
-import { normalize } from 'viem/ens'
-import { publicClient } from '../providers/client';
 
-export async function Navbar() {
-
-const ensAddress = await publicClient.getEnsAddress({
-  name: normalize('nick.eth'),
-})
-
+export function Navbar() {
+  
   return (
     <nav className="flex items-center justify-between px-6 h-14 border border-border rounded-xl bg-background max-w-6xl mx-auto">
 
@@ -31,7 +25,7 @@ const ensAddress = await publicClient.getEnsAddress({
         </a>
         <a href="/signup">
           <Button variant="default" size="sm">Sign up</Button>
-          <h1>{ensAddress}</h1>
+          
         </a>
       </div>
 

@@ -3,9 +3,8 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Navbar } from "@/components/Navbar";
-import { Providers } from "@/providers/wagmiProvider";
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,19 +23,40 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en" className={cn("font-sans", inter.variable)}>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <Providers>
-        <Navbar />
-        {children}
-        </Providers>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         
+        <div className="min-h-screen w-full relative bg-white overflow-hidden">
+
+          {/* Background Glow */}
+          <div
+            className="absolute inset-0 z-0"
+            style={{
+              background: "#ffffff",
+              backgroundImage: `
+                radial-gradient(
+                  circle at top right,
+                  rgba(70,130,180,0.5),
+                  transparent 70%
+                )
+              `,
+              filter: "blur(80px)",
+              backgroundRepeat: "no-repeat",
+            }}
+          />
+
+          {/* Content Layer */}
+          <div className="relative z-10">
+            <Navbar />
+            {children}
+          </div>
+
+        </div>
+
       </body>
     </html>
   );
