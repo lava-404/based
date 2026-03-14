@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
     params.set("ascending", searchParams.get("ascending") ?? "false");
     params.set("limit", searchParams.get("limit") ?? "20");
 
-    const allowed = ["offset", "category"];
+    const allowed = ["offset", "category", "tag_slug"];
     for (const key of allowed) {
       const val = searchParams.get(key);
       if (val !== null) params.set(key, val);

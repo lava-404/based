@@ -6,13 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "setup-bitgo-wallet": "npx ts-node scripts/setupBitGoWallet.ts"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.17.0",
     "viem": "^2.21.0",
     "@tanstack/react-query": "^5.90.21",
-    "bitgo": "^50.27.0",
+    "axios": "^1.7.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "ethers": "^6.16.0",
