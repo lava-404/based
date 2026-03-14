@@ -1,4 +1,5 @@
 import { Button } from "./ui/button";
+<<<<<<< Updated upstream
 import { BitGo } from "bitgo";
 
 async function placeBet() {
@@ -13,6 +14,18 @@ async function placeBet() {
 
 export function Navbar() {
   
+=======
+import { usePrivy } from "@privy-io/react-auth";
+import { AddressWithEns } from "./AddressWithEns";
+
+export function Navbar() {
+  const { ready, authenticated, user, login, logout } = usePrivy();
+  const wallet = user?.linkedAccounts?.find(
+    (a) => a.type === "wallet" || a.type === "smart_wallet"
+  ) as { address: string } | undefined;
+  const address = wallet?.address;
+
+>>>>>>> Stashed changes
   return (
     <nav className="flex items-center justify-between px-6 h-14 max-w-6xl mx-auto">
 
@@ -30,6 +43,7 @@ export function Navbar() {
       </a>
 
       <div className="flex items-center gap-2">
+<<<<<<< Updated upstream
         <a href="/login">
           <Button variant="outline" size="sm" >Log in</Button>
         </a>
@@ -38,6 +52,34 @@ export function Navbar() {
           
         </a>
         
+=======
+        {!ready ? (
+          <Button variant="outline" size="sm" disabled>
+            Loading…
+          </Button>
+        ) : authenticated ? (
+          <>
+            {address && (
+              <span className="text-sm text-muted-foreground max-w-[200px] truncate">
+                <AddressWithEns address={address} showAddress className="truncate" />
+              </span>
+            )}
+            <Button variant="outline" size="sm" onClick={logout}>
+              Log out
+            </Button>
+          </>
+        ) : (
+          <>
+            <span className="text-xs text-muted-foreground hidden sm:inline">Wallet (ENS) or email</span>
+            <Button variant="outline" size="sm" onClick={login}>
+              Log in
+            </Button>
+            <Button variant="default" size="sm" onClick={login}>
+              Sign up
+            </Button>
+          </>
+        )}
+>>>>>>> Stashed changes
       </div>
 
     </nav>
