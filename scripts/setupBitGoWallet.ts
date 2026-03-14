@@ -61,12 +61,13 @@ async function main() {
   const baseUrl = BITGO_EXPRESS_URL.replace(/\/$/, "");
   const url = `${baseUrl}/api/v2/${COIN}/wallet/generate`;
 
+  // tbaseeth: use custodial wallet; EVM TSS requires walletVersion 3, 5, or 6
   const body = {
     label: "Privacy Pool Master Wallet",
     passphrase: WALLET_PASSPHRASE,
     enterprise: BITGO_ENTERPRISE_ID,
-    multisigType: "onchain" as const,
-    type: "hot" as const,
+    type: "custodial" as const,
+    walletVersion: 3,
   };
 
   const { data } = await axios.post(url, body, {
