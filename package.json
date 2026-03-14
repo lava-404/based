@@ -12,6 +12,7 @@
     "@bitgo/sdk-api": "^1.75.4",
     "@bitgo/sdk-coin-btc": "^2.12.7",
     "@bitgo/sdk-coin-eth": "^25.6.6",
+    "@privy-io/react-auth": "^3.17.0",
     "@tanstack/react-query": "^5.90.21",
     "bitgo": "^50.27.0",
     "class-variance-authority": "^0.7.1",
