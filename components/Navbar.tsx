@@ -1,4 +1,3 @@
-'use client'
 import { Button } from "./ui/button";
 import { BitGo } from "bitgo";
 
@@ -15,7 +14,7 @@ async function placeBet() {
 export function Navbar() {
   
   return (
-    <nav className="flex items-center justify-between px-6 h-14 border border-border rounded-xl bg-background max-w-6xl mx-auto">
+    <nav className="flex items-center justify-between px-6 h-14 max-w-6xl mx-auto">
 
       <a href="/" className="flex items-center gap-2 no-underline">
         <div className="w-7 h-7 bg-primary rounded-[7px] flex items-center justify-center">
@@ -38,12 +37,7 @@ export function Navbar() {
           <Button variant="default" size="sm">Sign up</Button>
           
         </a>
-        <button
-  onClick={() => placeBet()}
-  className="mt-2 px-4 py-2 bg-primary text-white rounded"
->
-  Bet
-</button>
+        
       </div>
 
     </nav>
