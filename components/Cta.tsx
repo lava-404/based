@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import CreateMarketModal from "./CreateMarketButton"
+import CreateMarketModal from "./CreateMarketModal"
 
 export default function CTA() {
   return (
@@ -7,7 +7,7 @@ export default function CTA() {
 
       <div className="max-w-3xl mx-auto">
 
-        <h2 className="text-3x lg:text-5xl font-semibold text-white font-playfair-display">
+        <h2 className="text-3xl lg:text-5xl font-semibold text-white font-playfair-display">
           Start your first market
         </h2>
 
