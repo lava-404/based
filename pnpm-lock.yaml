@@ -14,6 +14,9 @@ importers:
       '@bitgo/sdk-coin-btc':
         specifier: ^2.12.7
         version: 2.12.7(fp-ts@2.16.11)(monocle-ts@2.3.13(fp-ts@2.16.11))(newtype-ts@0.3.5(fp-ts@2.16.11)(monocle-ts@2.3.13(fp-ts@2.16.11)))
+      '@bitgo/sdk-coin-eth':
+        specifier: ^25.6.6
+        version: 25.6.6(bufferutil@4.1.0)(monocle-ts@2.3.13(fp-ts@2.16.11))(newtype-ts@0.3.5(fp-ts@2.16.11)(monocle-ts@2.3.13(fp-ts@2.16.11)))(utf-8-validate@5.0.10)
       '@tanstack/react-query':
         specifier: ^5.90.21
         version: 5.90.21(react@19.2.3)

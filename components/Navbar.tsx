@@ -1,5 +1,16 @@
+'use client'
 import { Button } from "./ui/button";
 import { BitGo } from "bitgo";
+
+async function placeBet() {
+  await fetch("/api/bet", {
+    method: "POST",
+    body: JSON.stringify({
+      address: "0x123...",
+      amount: "1000000000000000",
+    }),
+  });
+}
 
 export function Navbar() {
   
@@ -27,6 +38,12 @@ export function Navbar() {
           <Button variant="default" size="sm">Sign up</Button>
           
         </a>
+        <button
+  onClick={() => placeBet()}
+  className="mt-2 px-4 py-2 bg-primary text-white rounded"
+>
+  Bet
+</button>
       </div>
 
     </nav>
