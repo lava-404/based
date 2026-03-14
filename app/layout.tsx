@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Navbar } from "@/components/Navbar";
+import { PrivyProvider } from "@/providers/privy-provider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -29,7 +30,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("font-sans", inter.variable)}>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        
+        <PrivyProvider>
         <div className="min-h-screen w-full relative bg-white overflow-hidden">
 
           {/* Background Glow */}
@@ -56,7 +57,7 @@ export default function RootLayout({
           </div>
 
         </div>
-
+        </PrivyProvider>
       </body>
     </html>
   );
