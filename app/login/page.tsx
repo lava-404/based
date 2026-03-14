@@ -34,7 +34,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-[60vh] flex flex-col items-center justify-center gap-6 px-6">
       <h1 className="text-2xl font-semibold text-foreground">
-        Log in to Flowbase
+        Log in to cBaseMarket
       </h1>
       <p className="text-muted-foreground text-center max-w-sm">
         Use your Ethereum wallet (ENS supported) or email to sign in.

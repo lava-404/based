@@ -15,20 +15,20 @@ export function Navbar() {
   const displayName = ensName ?? (address ? `${address.slice(0, 6)}…${address.slice(-4)}` : null);
 
   return (
-    <nav className="flex items-center justify-between px-6 h-14 max-w-6xl mx-auto">
+    <nav className="flex items-center justify-between px-6 h-14 max-w-6xl mx-auto border-b border-black/10">
       <div className="flex items-center gap-4">
         <a href="/" className="flex items-center gap-2 no-underline">
-        <div className="w-7 h-7 bg-primary rounded-[7px] flex items-center justify-center">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <circle cx="7" cy="7" r="4.5" stroke="white" strokeWidth="1.8" />
-            <circle cx="7" cy="7" r="1.5" fill="white" />
-          </svg>
-        </div>
-        <span className="text-[15px] font-medium text-foreground tracking-tight">
-          Flowbase
-        </span>
-      </a>
-        <a href="/privacy" className="text-sm text-muted-foreground hover:text-foreground no-underline">
+          <div className="w-7 h-7 bg-primary rounded-[7px] flex items-center justify-center shrink-0">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="7" r="4.5" stroke="white" strokeWidth="1.8" />
+              <circle cx="7" cy="7" r="1.5" fill="white" />
+            </svg>
+          </div>
+          <span className="hidden sm:inline text-[15px] font-medium text-foreground tracking-tight">
+            cBaseMarket
+          </span>
+        </a>
+        <a href="/privacy" className="hidden sm:block text-sm text-muted-foreground hover:text-foreground no-underline">
           Privacy Send
         </a>
       </div>
@@ -41,7 +41,7 @@ export function Navbar() {
         ) : authenticated ? (
           <>
             {displayName && (
-              <span className="text-sm text-muted-foreground max-w-[140px] truncate" title={address}>
+              <span className="hidden sm:block text-sm text-muted-foreground max-w-[140px] truncate" title={address}>
                 {displayName}
               </span>
             )}

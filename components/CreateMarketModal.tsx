@@ -300,8 +300,8 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
         type="button"
         onClick={() => setOpen(true)}
         style={{
-          background: "#0052FF",
-          color: "#ffffff",
+          background: "#ffffff",
+          color: "#0052ff",
           border: "none",
           borderRadius: "8px",
           padding: "0 24px",
