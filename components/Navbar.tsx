@@ -16,7 +16,8 @@ export function Navbar() {
 
   return (
     <nav className="flex items-center justify-between px-6 h-14 max-w-6xl mx-auto">
-      <a href="/" className="flex items-center gap-2 no-underline">
+      <div className="flex items-center gap-4">
+        <a href="/" className="flex items-center gap-2 no-underline">
         <div className="w-7 h-7 bg-primary rounded-[7px] flex items-center justify-center">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <circle cx="7" cy="7" r="4.5" stroke="white" strokeWidth="1.8" />
@@ -27,6 +28,10 @@ export function Navbar() {
           Flowbase
         </span>
       </a>
+        <a href="/privacy" className="text-sm text-muted-foreground hover:text-foreground no-underline">
+          Privacy Send
+        </a>
+      </div>
 
       <div className="flex items-center gap-2">
         {!ready ? (
