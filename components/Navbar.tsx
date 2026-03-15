@@ -1,14 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { Button } from "./ui/button";
 import { usePrivy } from "@privy-io/react-auth";
 import { useEnsName } from "@/lib/use-ens-name";
-import CreateMarketModal from "@/components/CreateMarketModal";
 
 export function Navbar() {
-  const [createMarketOpen, setCreateMarketOpen] = useState(false);
   const { ready, authenticated, user, login, logout } = usePrivy();
   const wallet = user?.linkedAccounts?.find(
     (a) => a.type === "wallet" || a.type === "smart_wallet"
@@ -36,9 +33,6 @@ export function Navbar() {
           <Link href="/events" className="text-sm text-muted-foreground hover:text-foreground no-underline">
             Explore Markets
           </Link>
-          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={() => setCreateMarketOpen(true)}>
-            Create Market
-          </Button>
           <a href="/privacy" className="hidden sm:block text-sm text-muted-foreground hover:text-foreground no-underline">
             Privacy Send
           </a>
@@ -73,7 +67,6 @@ export function Navbar() {
         )}
         </div>
       </nav>
-      <CreateMarketModal open={createMarketOpen} onOpenChange={setCreateMarketOpen} noTrigger />
     </header>
   );
 }

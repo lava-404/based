@@ -5,6 +5,7 @@ import { useTransition } from "react";
 
 const CATEGORIES: { label: string; value: string }[] = [
   { label: "All", value: "" },
+  { label: "Created", value: "Created" },
   { label: "Politics", value: "Politics" },
   { label: "Sports", value: "Sports" },
   { label: "Crypto", value: "Crypto" },

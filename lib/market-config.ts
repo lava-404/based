@@ -30,7 +30,7 @@ export const ENS_MARKET_REGISTRAR_ADDRESS = parseAddress(
 
 /** Parent domain for market subdomains (e.g. "markets.based.eth") — for display only. */
 export const ENS_PARENT_DOMAIN =
-  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_ENS_PARENT_DOMAIN?.trim()) || "markets.based.eth";
+  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_ENS_PARENT_DOMAIN?.trim()) || "cbasemarket.eth";
 
 /** Default factory (ConfidentialMarketFactory on Base Sepolia). */
 export const DEFAULT_FACTORY_ADDRESS: `0x${string}` =

@@ -72,12 +72,21 @@ export function CardSmall({ market }: Props) {
             </div>
           ) : (
             <div className="shrink-0 w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-              <span className="text-primary text-xs font-bold">?</span>
+              <span className="text-primary text-xs font-bold">
+                {market.source === "chain" ? "◆" : "?"}
+              </span>
             </div>
           )}
-          <p className="text-sm font-semibold text-foreground leading-snug line-clamp-2">
-            {market.question}
-          </p>
+          <div className="min-w-0 flex-1">
+            {market.source === "chain" && (
+              <span className="text-[10px] font-semibold text-primary uppercase tracking-wide">
+                On-chain
+              </span>
+            )}
+            <p className="text-sm font-semibold text-foreground leading-snug line-clamp-2">
+              {market.question}
+            </p>
+          </div>
         </div>
       </CardHeader>
 
@@ -93,14 +102,16 @@ export function CardSmall({ market }: Props) {
 
       <CardFooter className="px-4 py-3 flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
-          {formatVolume(market.volume)}
+          {market.source === "chain" ? "— Vol." : formatVolume(market.volume)}
         </span>
         <span className="text-xs text-muted-foreground">
-          {new Date(market.endDate).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
+          {market.endDate
+            ? new Date(market.endDate).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })
+            : "—"}
         </span>
       </CardFooter>
     </Card>

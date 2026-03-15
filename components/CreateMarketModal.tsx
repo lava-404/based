@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback, KeyboardEvent, FormEvent } fr
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { encodeFunctionData, decodeEventLog } from "viem";
 import ConfidentialMarketFactoryAbi from "@/abi/ConfidentialMarketFactory.json";
-import EnsMarketRegistrarAbi from "@/abi/ens/ENSMarketRegistrar.json";
 import {
   getFactoryAddress,
   getCollateralAddress,
@@ -262,6 +261,7 @@ export default function CreateMarketModal({
         await walletWithChain.switchChain(BASE_SEPOLIA_CHAIN_ID);
       }
       const provider = await walletWithChain.getEthereumProvider();
+      // Let the wallet/RPC estimate gas to avoid "exceeds max transaction gas limit" (many wallets cap at ~12–15M).
       const hash = await provider.request({
         method: "eth_sendTransaction",
         params: [
@@ -298,25 +298,23 @@ export default function CreateMarketModal({
       }
 
       if (subdomainLabel && registrarAddress && marketAddress) {
-        const registerData = encodeFunctionData({
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          abi: EnsMarketRegistrarAbi as any,
-          functionName: "registerMarketSubdomain",
-          args: [subdomainLabel, marketAddress],
+        // Subdomain registration must be sent by the registrar's operator (not the user).
+        // The contract only allows operator/owner to call registerMarketSubdomain.
+        const regRes = await fetch("/api/register-ens-subdomain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subdomainLabel,
+            marketAddress,
+          }),
         });
-        const subHash = await provider.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from: (wallet as { address: string }).address,
-              to: registrarAddress,
-              data: registerData,
-              chainId: "0x14a34",
-            },
-          ],
-        });
-        setSubdomainTxHash(subHash as string);
-        setCreatedSubdomain(subdomainLabel);
+        const regData = await regRes.json();
+        if (regRes.ok && regData.success && regData.txHash) {
+          setSubdomainTxHash(regData.txHash);
+          setCreatedSubdomain(subdomainLabel);
+        } else {
+          setSubdomainSkippedReason(regData?.error ?? "Subdomain registration failed.");
+        }
       } else if (subdomainLabel) {
         if (!registrarAddress) {
           setSubdomainSkippedReason("ENS registrar not configured.");
@@ -327,7 +325,7 @@ export default function CreateMarketModal({
 
       onSubmit?.({ question, options, validTill, yesPrice, noPrice, subdomain: subdomainLabel });
       setSubmitted(true);
-      setTimeout(() => handleClose(), 4000);
+      // Keep success state visible until user closes (no auto-close)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setCreateError(msg);
@@ -566,17 +564,38 @@ export default function CreateMarketModal({
           >
             {/* ── Success state ─────────────────────────────────────────────── */}
             {submitted ? (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "56px 32px",
-                  gap: "14px",
-                  animation: "cm-pop 0.4s ease",
-                }}
-              >
+              <div style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  className="cm-close-btn"
+                  onClick={handleClose}
+                  aria-label="Close modal"
+                  style={{
+                    position: "absolute",
+                    top: 16,
+                    right: 16,
+                    padding: 8,
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                    borderRadius: 8,
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                    <path d="M1.5 1.5l10 10M11.5 1.5l-10 10" stroke="#71717a" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                </button>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "56px 32px 32px",
+                    gap: "14px",
+                    animation: "cm-pop 0.4s ease",
+                  }}
+                >
                 <div
                   style={{
                     width: 56,
@@ -605,14 +624,51 @@ export default function CreateMarketModal({
                   Your prediction market is now live.
                 </p>
                 {createdSubdomain && (
-                  <p style={{ fontSize: "13px", color: "#0a0a0a", margin: 0, fontWeight: 600 }}>
-                    Share at: <span style={{ color: "#0052FF" }}>{createdSubdomain}.{getEnsParentDomain()}</span>
-                  </p>
+                  <>
+                    <p style={{ fontSize: "13px", color: "#0a0a0a", margin: 0, fontWeight: 600 }}>
+                      Share at: <span style={{ color: "#0052FF" }}>{createdSubdomain}.{getEnsParentDomain()}</span>
+                    </p>
+                    <p style={{ fontSize: "12px", color: "#71717a", margin: 0 }}>
+                      Subname registered on Base Sepolia. It may take a moment to appear on ENS.
+                    </p>
+                    <a
+                      href={`https://sepolia.app.ens.domains/${getEnsParentDomain()}?tab=subnames`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: "13px",
+                        color: "#0052FF",
+                        fontWeight: 600,
+                        marginTop: "4px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      View subnames on ENS (Sepolia) →
+                    </a>
+                  </>
                 )}
                 {subdomainSkippedReason && (
-                  <p style={{ fontSize: "12px", color: "#71717a", margin: 0 }}>
-                    Subdomain not registered: {subdomainSkippedReason}
-                  </p>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "#b91c1c",
+                      margin: 0,
+                      padding: "8px 12px",
+                      background: "#fef2f2",
+                      borderRadius: 8,
+                      textAlign: "left",
+                      width: "100%",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    <strong>Subdomain not registered:</strong> {subdomainSkippedReason}
+                    <br />
+                    <span style={{ color: "#71717a" }}>
+                      Ensure ENS_REGISTRAR_OPERATOR_PRIVATE_KEY is set and the registrar contract is on Base Sepolia.
+                    </span>
+                  </div>
                 )}
                 {txHash && (
                   <a
@@ -626,7 +682,7 @@ export default function CreateMarketModal({
                       marginTop: "4px",
                     }}
                   >
-                    View on BaseScan →
+                    View market tx on BaseScan →
                   </a>
                 )}
                 {subdomainTxHash && (
@@ -642,9 +698,28 @@ export default function CreateMarketModal({
                       display: "block",
                     }}
                   >
-                    Subdomain tx on BaseScan →
+                    View subdomain tx on BaseScan →
                   </a>
                 )}
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  style={{
+                    marginTop: 20,
+                    padding: "10px 24px",
+                    borderRadius: 12,
+                    border: "1px solid #e5e5e5",
+                    background: "#fff",
+                    color: "#0a0a0a",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >
+                  Close
+                </button>
+                </div>
               </div>
             ) : (
               <>
@@ -724,7 +799,7 @@ export default function CreateMarketModal({
                   </div>
 
                   {/* Options */}
-                  <div>
+                  {/* <div>
                     <label style={labelStyle}>Options</label>
                     <div
                       style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "10px" }}
@@ -772,7 +847,7 @@ export default function CreateMarketModal({
                       </button>
                     </div>
                     {errors.options && <ErrorMsg>{errors.options}</ErrorMsg>}
-                  </div>
+                  </div> */}
 
                   {/* End time (ConfidentialMarket endTime_) */}
                   <div>
@@ -818,6 +893,16 @@ export default function CreateMarketModal({
                             {subdomain.trim() ? `${subdomain.trim().toLowerCase()}.` : "…."}
                             {getEnsParentDomain()}
                           </strong>
+                          . Subnames are visible on{" "}
+                          <a
+                            href={`https://sepolia.app.ens.domains/${getEnsParentDomain()}?tab=subnames`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: "#0052FF", fontWeight: 600 }}
+                          >
+                            ENS (Sepolia)
+                          </a>
+                          .
                         </>
                       ) : (
                         <span style={{ color: "#a1a1aa" }}>

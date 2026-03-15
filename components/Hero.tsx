@@ -10,7 +10,6 @@ export default function Hero() {
 
   return (
     <section className="relative flex items-center justify-center px-6 py-28 text-center mt-10 sm:mt-20">
-
       <div className="max-w-5xl">
         <h1 className="text-4xl tracking-tight leading-tight sm:text-5xl font-playfair-display">
           the <span className="font-bold text-[#0052ff]">first</span> prediction market{" "}
@@ -24,21 +23,16 @@ export default function Hero() {
         </p>
 
         <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-          <Button size="lg" onClick={() => setCreateMarketOpen(true)}>
-            Launch Market
-          </Button>
-
-          <Button size="lg" variant="outline" asChild>
+          <Button size="lg" className="bg-[#0052ff] hover:bg-[#0046e0] text-white" asChild>
             <Link href="/events">Explore Markets</Link>
+          </Button>
+          <Button size="lg" variant="outline" onClick={() => setCreateMarketOpen(true)}>
+            Create Market
           </Button>
         </div>
       </div>
 
-      <CreateMarketModal
-        open={createMarketOpen}
-        onOpenChange={setCreateMarketOpen}
-        noTrigger
-      />
+      <CreateMarketModal open={createMarketOpen} onOpenChange={setCreateMarketOpen} noTrigger />
     </section>
   );
 }

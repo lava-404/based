@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button"
-import CreateMarketModal from "./CreateMarketModal"
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function CTA() {
   return (
@@ -16,11 +16,13 @@ export default function CTA() {
         </p>
 
         <div className="mt-8">
-          <CreateMarketModal></CreateMarketModal>
+          <Button size="lg" variant="secondary" className="bg-white text-[#0052ff] hover:bg-white/90" asChild>
+            <Link href="/events">Explore Markets</Link>
+          </Button>
         </div>
 
       </div>
 
     </section>
-  )
+  );
 }
