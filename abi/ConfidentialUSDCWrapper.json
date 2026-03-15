@@ -1,0 +1,15 @@
+[
+  {
+    "inputs": [{ "internalType": "uint256", "name": "amount", "type": "uint256" }],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "name": "deposit"
+  },
+  {
+    "inputs": [],
+    "stateMutability": "view",
+    "type": "function",
+    "name": "underlying",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }]
+  }
+]

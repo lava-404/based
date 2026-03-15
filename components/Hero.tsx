@@ -1,6 +1,13 @@
-import { Button } from "@/components/ui/button"
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import CreateMarketModal from "@/components/CreateMarketModal";
 
 export default function Hero() {
+  const [createMarketOpen, setCreateMarketOpen] = useState(false);
+
   return (
     <section className="relative flex items-center justify-center px-6 py-28 text-center mt-10 sm:mt-20">
 
@@ -17,15 +24,21 @@ export default function Hero() {
         </p>
 
         <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-          <Button size="lg">
+          <Button size="lg" onClick={() => setCreateMarketOpen(true)}>
             Launch Market
           </Button>
 
-          <Button size="lg" variant="outline">
-            Explore Markets
+          <Button size="lg" variant="outline" asChild>
+            <Link href="/events">Explore Markets</Link>
           </Button>
         </div>
       </div>
+
+      <CreateMarketModal
+        open={createMarketOpen}
+        onOpenChange={setCreateMarketOpen}
+        noTrigger
+      />
     </section>
-  )
+  );
 }

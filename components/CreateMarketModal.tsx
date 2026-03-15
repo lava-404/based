@@ -1,6 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, KeyboardEvent, FormEvent } from "react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { encodeFunctionData, decodeEventLog } from "viem";
+import ConfidentialMarketFactoryAbi from "@/abi/ConfidentialMarketFactory.json";
+import EnsMarketRegistrarAbi from "@/abi/ens/ENSMarketRegistrar.json";
+import {
+  getFactoryAddress,
+  getCollateralAddress,
+  getEnsRegistrarAddress,
+  getEnsParentDomain,
+  baseSepoliaPublicClient,
+  BASE_SEPOLIA_CHAIN_ID,
+  BASESCAN_TX_URL,
+} from "@/lib/market-config";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -10,6 +23,7 @@ interface FormErrors {
   validTill?: string;
   yesPrice?: string;
   noPrice?: string;
+  subdomain?: string;
 }
 
 interface MarketFormData {
@@ -18,28 +32,72 @@ interface MarketFormData {
   validTill: string;
   yesPrice: string;
   noPrice: string;
+  subdomain?: string;
 }
 
 interface CreateMarketModalProps {
   /** Called with the final form data when the user submits successfully. */
   onSubmit?: (data: MarketFormData) => void;
+  /** Controlled open state (when set, trigger button is hidden; parent controls open). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Pre-fill question (e.g. event market title). */
+  defaultQuestion?: string;
+  /** Pre-fill end date (YYYY-MM-DD). */
+  defaultValidTill?: string;
+  /** When true, do not render the "Create Market" trigger button (use with controlled open). */
+  noTrigger?: boolean;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) {
-  const [open, setOpen] = useState<boolean>(false);
+export default function CreateMarketModal({
+  onSubmit,
+  open: controlledOpen,
+  onOpenChange,
+  defaultQuestion,
+  defaultValidTill,
+  noTrigger,
+}: CreateMarketModalProps) {
+  const { ready, authenticated } = usePrivy();
+  const { wallets } = useWallets();
+
+  const [internalOpen, setInternalOpen] = useState<boolean>(false);
+  const isControlled = controlledOpen !== undefined && onOpenChange !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = useCallback(
+    (v: boolean) => {
+      if (isControlled) onOpenChange?.(v);
+      else setInternalOpen(v);
+    },
+    [isControlled, onOpenChange]
+  );
+
   const [question, setQuestion] = useState<string>("");
   const [options, setOptions] = useState<string[]>(["Yes", "No"]);
   const [newOption, setNewOption] = useState<string>("");
   const [validTill, setValidTill] = useState<string>("");
   const [yesPrice, setYesPrice] = useState<string>("");
   const [noPrice, setNoPrice] = useState<string>("");
+  const [subdomain, setSubdomain] = useState<string>("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitted, setSubmitted] = useState<boolean>(false);
+  const [isCreating, setIsCreating] = useState<boolean>(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [subdomainTxHash, setSubdomainTxHash] = useState<string | null>(null);
+  const [createdSubdomain, setCreatedSubdomain] = useState<string | null>(null);
+  const [subdomainSkippedReason, setSubdomainSkippedReason] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const firstInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // When opening with defaults, pre-fill question and validTill (ConfidentialMarket: question_, endTime_)
+  useEffect(() => {
+    if (!open) return;
+    if (defaultQuestion !== undefined && defaultQuestion !== "") setQuestion(defaultQuestion);
+    if (defaultValidTill !== undefined && defaultValidTill !== "") setValidTill(defaultValidTill);
+  }, [open, defaultQuestion, defaultValidTill]);
 
   // ── Reset ──────────────────────────────────────────────────────────────────
 
@@ -50,14 +108,21 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
     setValidTill("");
     setYesPrice("");
     setNoPrice("");
+    setSubdomain("");
     setErrors({});
     setSubmitted(false);
+    setIsCreating(false);
+    setTxHash(null);
+    setSubdomainTxHash(null);
+    setCreatedSubdomain(null);
+    setSubdomainSkippedReason(null);
+    setCreateError(null);
   }, []);
 
   const handleClose = useCallback((): void => {
     setOpen(false);
     setTimeout(resetForm, 300);
-  }, [resetForm]);
+  }, [resetForm, setOpen]);
 
   // ── Side-effects ───────────────────────────────────────────────────────────
 
@@ -125,20 +190,150 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
     if (!noPrice || isNaN(Number(noPrice)) || Number(noPrice) <= 0) {
       errs.noPrice = "Enter a valid NO price.";
     }
+    if (subdomain.trim()) {
+      const label = subdomain.trim().toLowerCase();
+      if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(label) || label.length > 63) {
+        errs.subdomain = "Use only letters, numbers, and hyphens (1–63 characters).";
+      }
+    }
 
     return errs;
   };
 
-  const handleSubmit = (evt: FormEvent<HTMLFormElement>): void => {
+  const handleSubmit = async (evt: FormEvent<HTMLFormElement>): Promise<void> => {
     evt.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
     }
-    onSubmit?.({ question, options, validTill, yesPrice, noPrice });
-    setSubmitted(true);
-    setTimeout(() => handleClose(), 1800);
+    setCreateError(null);
+
+    if (!ready || !authenticated) {
+      setCreateError("Please log in with your wallet to create a market.");
+      return;
+    }
+
+    const wallet = wallets?.[0];
+    if (!wallet) {
+      setCreateError("No wallet connected. Connect a wallet to continue.");
+      return;
+    }
+
+    let factoryAddress: `0x${string}`;
+    try {
+      factoryAddress = getFactoryAddress();
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : "Factory address not configured.");
+      return;
+    }
+
+    const endTimeDate = new Date(validTill);
+    endTimeDate.setHours(23, 59, 59, 999);
+    const endTimeUnix = BigInt(Math.floor(endTimeDate.getTime() / 1000));
+    const collateralToken = getCollateralAddress();
+
+    const data = encodeFunctionData({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      abi: ConfidentialMarketFactoryAbi as any,
+      functionName: "createMarket",
+      args: [
+        collateralToken,
+        question.trim(),
+        endTimeUnix,
+        "Yes",
+        "YES",
+        "No",
+        "NO",
+      ],
+    });
+
+    const subdomainLabel = subdomain.trim() ? subdomain.trim().toLowerCase() : undefined;
+    const registrarAddress = getEnsRegistrarAddress();
+
+    setIsCreating(true);
+    try {
+      const walletWithChain = wallet as {
+        address: string;
+        switchChain?: (chainId: number) => Promise<void>;
+        getEthereumProvider: () => Promise<{ request: (args: { method: string; params: unknown[] }) => Promise<string> }>;
+      };
+      if (walletWithChain.switchChain) {
+        await walletWithChain.switchChain(BASE_SEPOLIA_CHAIN_ID);
+      }
+      const provider = await walletWithChain.getEthereumProvider();
+      const hash = await provider.request({
+        method: "eth_sendTransaction",
+        params: [
+          {
+            from: (wallet as { address: string }).address,
+            to: factoryAddress,
+            data,
+            chainId: "0x14a34",
+          },
+        ],
+      });
+      const txHashHex = hash as string;
+      setTxHash(txHashHex);
+
+      const receipt = await baseSepoliaPublicClient.waitForTransactionReceipt({
+        hash: txHashHex as `0x${string}`,
+      });
+
+      let marketAddress: `0x${string}` | undefined;
+      for (const log of receipt.logs) {
+        try {
+          const decoded = decodeEventLog({
+            abi: ConfidentialMarketFactoryAbi as never[],
+            data: log.data,
+            topics: log.topics,
+          });
+          if (decoded.eventName === "MarketCreated") {
+            marketAddress = (decoded.args as { market: `0x${string}` }).market;
+            break;
+          }
+        } catch {
+          // not our event
+        }
+      }
+
+      if (subdomainLabel && registrarAddress && marketAddress) {
+        const registerData = encodeFunctionData({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          abi: EnsMarketRegistrarAbi as any,
+          functionName: "registerMarketSubdomain",
+          args: [subdomainLabel, marketAddress],
+        });
+        const subHash = await provider.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: (wallet as { address: string }).address,
+              to: registrarAddress,
+              data: registerData,
+              chainId: "0x14a34",
+            },
+          ],
+        });
+        setSubdomainTxHash(subHash as string);
+        setCreatedSubdomain(subdomainLabel);
+      } else if (subdomainLabel) {
+        if (!registrarAddress) {
+          setSubdomainSkippedReason("ENS registrar not configured.");
+        } else if (!marketAddress) {
+          setSubdomainSkippedReason("Could not read market address from tx; register subdomain manually if needed.");
+        }
+      }
+
+      onSubmit?.({ question, options, validTill, yesPrice, noPrice, subdomain: subdomainLabel });
+      setSubmitted(true);
+      setTimeout(() => handleClose(), 4000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setCreateError(msg);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const today: string = new Date().toISOString().split("T")[0];
@@ -179,6 +374,12 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
           box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.12);
         }
         .cm-input.cm-field-error { border-color: #dc2626; }
+        .cm-input-amount {
+          font-size: 16px;
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: 0.02em;
+        }
         .cm-textarea {
           width: 100%;
           min-height: 80px;
@@ -295,34 +496,36 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
         }
       `}</style>
 
-      {/* ── Trigger ─────────────────────────────────────────────────────────── */}
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        style={{
-          background: "#ffffff",
-          color: "#0052ff",
-          border: "none",
-          borderRadius: "8px",
-          padding: "0 24px",
-          height: "44px",
-          fontSize: "14px",
-          fontWeight: 600,
-          cursor: "pointer",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "8px",
-          fontFamily: "inherit",
-          transition: "opacity 0.15s",
-        }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-        Create Market
-      </button>
+      {/* ── Trigger (hidden when noTrigger or controlled) ─────────────────────── */}
+      {!noTrigger && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          style={{
+            background: "#ffffff",
+            color: "#0052ff",
+            border: "none",
+            borderRadius: "8px",
+            padding: "0 24px",
+            height: "44px",
+            fontSize: "14px",
+            fontWeight: 600,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            fontFamily: "inherit",
+            transition: "opacity 0.15s",
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.88"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          Create Market
+        </button>
+      )}
 
       {/* ── Backdrop + Modal ─────────────────────────────────────────────────── */}
       {open && (
@@ -401,6 +604,47 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
                 <p style={{ fontSize: "14px", color: "#71717a", margin: 0 }}>
                   Your prediction market is now live.
                 </p>
+                {createdSubdomain && (
+                  <p style={{ fontSize: "13px", color: "#0a0a0a", margin: 0, fontWeight: 600 }}>
+                    Share at: <span style={{ color: "#0052FF" }}>{createdSubdomain}.{getEnsParentDomain()}</span>
+                  </p>
+                )}
+                {subdomainSkippedReason && (
+                  <p style={{ fontSize: "12px", color: "#71717a", margin: 0 }}>
+                    Subdomain not registered: {subdomainSkippedReason}
+                  </p>
+                )}
+                {txHash && (
+                  <a
+                    href={`${BASESCAN_TX_URL}/${txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontSize: "13px",
+                      color: "#0052FF",
+                      fontWeight: 600,
+                      marginTop: "4px",
+                    }}
+                  >
+                    View on BaseScan →
+                  </a>
+                )}
+                {subdomainTxHash && (
+                  <a
+                    href={`${BASESCAN_TX_URL}/${subdomainTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontSize: "13px",
+                      color: "#0052FF",
+                      fontWeight: 600,
+                      marginTop: "2px",
+                      display: "block",
+                    }}
+                  >
+                    Subdomain tx on BaseScan →
+                  </a>
+                )}
               </div>
             ) : (
               <>
@@ -426,7 +670,7 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
                       Create Market
                     </h2>
                     <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#71717a" }}>
-                      Set up a new prediction market
+                      Question, end time, and YES/NO outcome tokens (ConfidentialMarket)
                     </p>
                   </div>
 
@@ -530,10 +774,10 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
                     {errors.options && <ErrorMsg>{errors.options}</ErrorMsg>}
                   </div>
 
-                  {/* Valid Till */}
+                  {/* End time (ConfidentialMarket endTime_) */}
                   <div>
                     <label htmlFor="cm-date" style={labelStyle}>
-                      Valid Till
+                      End time
                     </label>
                     <input
                       id="cm-date"
@@ -547,6 +791,41 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
                       }}
                     />
                     {errors.validTill && <ErrorMsg>{errors.validTill}</ErrorMsg>}
+                  </div>
+
+                  {/* Add subdomain to this market at creation (optional; any market can have one) */}
+                  <div>
+                    <label htmlFor="cm-subdomain" style={labelStyle}>
+                      Market subdomain (optional)
+                    </label>
+                    <input
+                      id="cm-subdomain"
+                      type="text"
+                      className={`cm-input${errors.subdomain ? " cm-field-error" : ""}`}
+                      placeholder="e.g. btc-100k or elon-tweets-march"
+                      value={subdomain}
+                      onChange={(evt) => {
+                        setSubdomain(evt.target.value);
+                        setErrors((prev) => ({ ...prev, subdomain: undefined }));
+                      }}
+                      style={{ textTransform: "lowercase" }}
+                    />
+                    <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#71717a" }}>
+                      {getEnsRegistrarAddress() ? (
+                        <>
+                          This market will be reachable at{" "}
+                          <strong style={{ color: "#0a0a0a" }}>
+                            {subdomain.trim() ? `${subdomain.trim().toLowerCase()}.` : "…."}
+                            {getEnsParentDomain()}
+                          </strong>
+                        </>
+                      ) : (
+                        <span style={{ color: "#a1a1aa" }}>
+                          Set NEXT_PUBLIC_ENS_MARKET_REGISTRAR_ADDRESS to register a subdomain for this market.
+                        </span>
+                      )}
+                    </p>
+                    {errors.subdomain && <ErrorMsg>{errors.subdomain}</ErrorMsg>}
                   </div>
 
                   {/* Token Prices */}
@@ -564,7 +843,7 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
                           <DollarPrefix />
                           <input
                             type="number"
-                            className={`cm-input${errors.yesPrice ? " cm-field-error" : ""}`}
+                            className={`cm-input cm-input-amount${errors.yesPrice ? " cm-field-error" : ""}`}
                             min="0.01"
                             step="0.01"
                             placeholder="0.60"
@@ -589,7 +868,7 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
                           <DollarPrefix />
                           <input
                             type="number"
-                            className={`cm-input${errors.noPrice ? " cm-field-error" : ""}`}
+                            className={`cm-input cm-input-amount${errors.noPrice ? " cm-field-error" : ""}`}
                             min="0.01"
                             step="0.01"
                             placeholder="0.40"
@@ -607,16 +886,41 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
                     </div>
                   </div>
 
+                  {createError && (
+                    <div
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: "8px",
+                        background: "#fef2f2",
+                        border: "1px solid #fecaca",
+                        fontSize: "13px",
+                        color: "#dc2626",
+                      }}
+                    >
+                      {createError}
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div
                     className="cm-actions-row"
                     style={{ display: "flex", gap: "10px", paddingTop: "4px" }}
                   >
-                    <button type="button" className="cm-cancel-btn" onClick={handleClose}>
+                    <button
+                      type="button"
+                      className="cm-cancel-btn"
+                      onClick={handleClose}
+                      disabled={isCreating}
+                    >
                       Cancel
                     </button>
-                    <button type="submit" className="cm-submit-btn">
-                      Create Market
+                    <button
+                      type="submit"
+                      className="cm-submit-btn"
+                      disabled={isCreating}
+                      style={{ opacity: isCreating ? 0.7 : 1 }}
+                    >
+                      {isCreating ? "Creating…" : "Create Market"}
                     </button>
                   </div>
                 </form>

@@ -1,32 +1,7 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Inter, Instrument_Serif, Playfair_Display } from "next/font/google";
 import "./globals.css";
-import { cn } from "@/lib/utils";
 import { Navbar } from "@/components/Navbar";
 import { PrivyProvider } from "@/providers/privy-provider";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const instrumentSerif = Instrument_Serif({
-  weight: ["400"],
-  subsets: ["latin"],
-  variable: "--font-instrument-serif",
-});
-
-const playfairDisplay = Playfair_Display({
-  subsets: ["latin"],
-  variable: "--font-playfair-display",
-});
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -39,16 +14,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="en"
-      className={cn(
-        "font-sans",
-        inter.variable,
-        instrumentSerif.variable,
-        playfairDisplay.variable
-      )}
-    >
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    <html lang="en" className="font-sans">
+      <body className="antialiased">
         <PrivyProvider>
           <div className="min-h-screen w-full relative bg-white overflow-hidden">
 
