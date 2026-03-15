@@ -3,6 +3,7 @@ import { CardSmall } from "@/components/SmallCard";
 import { CategoryTabs } from "@/components/CategoryTabs";
 import { type Market } from "@/app/api/markets/route";
 import Link from "next/link";
+import CreateMarketButton from "@/components/CreateMarketButton";
 
 async function getMarkets(category?: string): Promise<Market[]> {
   const params = new URLSearchParams({
@@ -38,13 +39,16 @@ export default async function EventsPage({ searchParams }: Props) {
       </Suspense>
 
       <div className="max-w-6xl mx-auto px-6 py-10">
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">
-            {category || "All Markets"}
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {markets.length} active markets
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">
+              {category || "All Markets"}
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              {markets.length} active markets
+            </p>
+          </div>
+          <CreateMarketButton />
         </div>
 
         {markets.length === 0 ? (

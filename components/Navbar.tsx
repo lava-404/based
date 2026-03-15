@@ -28,11 +28,13 @@ export function Navbar() {
           Flowbase
         </span>
       </a>
+        <a href="/markets" className="text-sm text-muted-foreground hover:text-foreground no-underline">
+          Markets
+        </a>
         <a href="/privacy" className="text-sm text-muted-foreground hover:text-foreground no-underline">
           Privacy Send
         </a>
       </div>
-
       <div className="flex items-center gap-2">
         {!ready ? (
           <Button variant="outline" size="sm" disabled>

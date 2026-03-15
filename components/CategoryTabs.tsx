@@ -147,25 +147,14 @@ export function CategoryTabs() {
 
   return (
     <div
-      className="bg-background border-b border-border sticky z-10"
-      style={{ top: "57px" }}
-    >
+      className="bg-transaparent border-b border-border sticky z-10"
+      style={{ top: "57px" }}>
       <div className="relative max-w-6xl mx-auto">
-        {/* right fade mask */}
-        <div
-          className="pointer-events-none absolute right-0 top-0 bottom-0 w-16 z-10"
-          style={{
-            background:
-              "linear-gradient(to right, transparent, var(--background))",
-          }}
-        />
-
         <div
           role="tablist"
           aria-label="Market categories"
           className="flex items-center gap-2.5 overflow-x-auto px-6 py-3.5"
-          style={{ scrollbarWidth: "none" }}
-        >
+          style={{ scrollbarWidth: "none" }}>
           {CATEGORIES.map(({ label, value, Icon, bg, text, activeBg, activeText, activeShadow }) => {
             const isActive = active === value;
             return (

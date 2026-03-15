@@ -1,6 +1,299 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, KeyboardEvent, FormEvent } from "react";
+import { useAccount, useWalletClient, usePublicClient } from "wagmi";
+import { parseEventLogs } from "viem";
+
+// ── ABI ──────────────────────────────────────────────────────────────────────
+
+const FACTORY_ABI = [
+  {
+    inputs: [
+      { internalType: "address", name: "collateralToken_", type: "address" },
+      { internalType: "string", name: "question_", type: "string" },
+      { internalType: "uint256", name: "endTime_", type: "uint256" },
+      { internalType: "string", name: "yesName_", type: "string" },
+      { internalType: "string", name: "yesSymbol_", type: "string" },
+      { internalType: "string", name: "noName_", type: "string" },
+      { internalType: "string", name: "noSymbol_", type: "string" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+    name: "createMarket",
+    outputs: [{ internalType: "address", name: "market", type: "address" }],
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "market", type: "address", indexed: true },
+      { internalType: "address", name: "yesToken", type: "address", indexed: true },
+      { internalType: "address", name: "noToken", type: "address", indexed: true },
+      { internalType: "string", name: "question", type: "string", indexed: false },
+      { internalType: "uint256", name: "endTime", type: "uint256", indexed: false },
+      { internalType: "address", name: "resolver", type: "address", indexed: false },
+    ],
+    type: "event",
+    name: "MarketCreated",
+    anonymous: false,
+  },
+] as const;
+
+const MARKET_ABI = [
+  {
+    inputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+    name: "deposit",
+  },
+  {
+    inputs: [
+      { internalType: "euint256", name: "amount", type: "bytes32" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+    name: "claimWinnings",
+  },
+  {
+    inputs: [
+      { internalType: "euint256", name: "amount", type: "bytes32" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+    name: "redeem",
+  },
+  {
+    inputs: [
+      { internalType: "bool", name: "outcomeYesWins_", type: "bool" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+    name: "resolve",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "user", type: "address", indexed: true },
+      { internalType: "euint256", name: "amount", type: "bytes32", indexed: false },
+    ],
+    type: "event",
+    name: "Deposit",
+    anonymous: false,
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "user", type: "address", indexed: true },
+      { internalType: "euint256", name: "amount", type: "bytes32", indexed: false },
+    ],
+    type: "event",
+    name: "ClaimWinnings",
+    anonymous: false,
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "user", type: "address", indexed: true },
+      { internalType: "euint256", name: "amount", type: "bytes32", indexed: false },
+    ],
+    type: "event",
+    name: "Redeem",
+    anonymous: false,
+  },
+  {
+    inputs: [
+      { internalType: "bool", name: "outcomeYesWins", type: "bool", indexed: false },
+    ],
+    type: "event",
+    name: "Resolved",
+    anonymous: false,
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "collateralToken",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "yesToken",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "noToken",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "question",
+    outputs: [{ internalType: "string", name: "", type: "string" }],
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "endTime",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "resolver",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "resolved",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "outcomeYesWins",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "totalCollateral",
+    outputs: [{ internalType: "bytes32", name: "", type: "bytes32" }],
+  },
+] as const;
+
+const USDC_ABI = [
+  {
+    inputs: [
+      { internalType: "address", name: "spender", type: "address" },
+      { internalType: "uint256", name: "amount", type: "uint256" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+    name: "approve",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+  },
+  {
+    inputs: [{ internalType: "address", name: "account", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+    name: "balanceOf",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+  },
+] as const;
+
+const OUTCOME_TOKEN_ABI = [
+  {
+    inputs: [
+      { internalType: "address", name: "spender", type: "address" },
+      { internalType: "bytes32", name: "amount", type: "bytes32" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+    name: "approve",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "account", type: "address" },
+    ],
+    stateMutability: "view",
+    type: "function",
+    name: "balanceOf",
+    outputs: [{ internalType: "bytes32", name: "", type: "bytes32" }],
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "to", type: "address" },
+      { internalType: "bytes32", name: "amount", type: "bytes32" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+    name: "transfer",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "from", type: "address" },
+      { internalType: "address", name: "to", type: "address" },
+      { internalType: "bytes32", name: "amount", type: "bytes32" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+    name: "transferFrom",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "name",
+    outputs: [{ internalType: "string", name: "", type: "string" }],
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "symbol",
+    outputs: [{ internalType: "string", name: "", type: "string" }],
+  },
+] as const;
+
+const POOL_ABI = [
+  {
+    inputs: [
+      { internalType: "bytes32", name: "amount", type: "bytes32" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+    name: "addLiquidity",
+  },
+  {
+    inputs: [
+      { internalType: "bytes32", name: "amount", type: "bytes32" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+    name: "removeLiquidity",
+  },
+  {
+    inputs: [
+      { internalType: "bytes32", name: "amount", type: "bytes32" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+    name: "rebalance",
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "yesToken",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "noToken",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+  },
+  {
+    inputs: [],
+    stateMutability: "view",
+    type: "function",
+    name: "market",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+  },
+] as const;
+
+const FACTORY_ADDRESS = "0x11986c6Ea2eA0168530990eA873983c59054390F" as const;
+const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b1566469c3d" as const;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,6 +330,19 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
   const [noPrice, setNoPrice] = useState<string>("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitted, setSubmitted] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [marketData, setMarketData] = useState<{
+    market: string;
+    yesToken: string;
+    noToken: string;
+  } | null>(null);
+  const [buyingToken, setBuyingToken] = useState<"yes" | "no" | null>(null);
+  const [buyTxHash, setBuyTxHash] = useState<string | null>(null);
+
+  const { address } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
 
   const modalRef = useRef<HTMLDivElement>(null);
   const firstInputRef = useRef<HTMLTextAreaElement>(null);
@@ -52,6 +358,9 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
     setNoPrice("");
     setErrors({});
     setSubmitted(false);
+    setLoading(false);
+    setTxHash(null);
+    setMarketData(null);
   }, []);
 
   const handleClose = useCallback((): void => {
@@ -125,20 +434,125 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
     if (!noPrice || isNaN(Number(noPrice)) || Number(noPrice) <= 0) {
       errs.noPrice = "Enter a valid NO price.";
     }
-
     return errs;
   };
 
-  const handleSubmit = (evt: FormEvent<HTMLFormElement>): void => {
+  const handleSubmit = async (evt: FormEvent<HTMLFormElement>): Promise<void> => {
     evt.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
     }
-    onSubmit?.({ question, options, validTill, yesPrice, noPrice });
-    setSubmitted(true);
-    setTimeout(() => handleClose(), 1800);
+
+    if (!walletClient || !publicClient || !address) {
+      setErrors({ question: "Wallet not connected" });
+      return;
+    }
+
+    setLoading(true);
+    setErrors({});
+
+    try {
+      // Convert date to Unix timestamp
+      const endTime = Math.floor(new Date(validTill).getTime() / 1000);
+
+      // Step 1: Call createMarket function
+      const hash = await walletClient.writeContract({
+        address: FACTORY_ADDRESS,
+        abi: FACTORY_ABI,
+        functionName: "createMarket",
+        args: [
+          USDC_ADDRESS,
+          question,
+          BigInt(endTime),
+          `${options[0]} Token`,
+          options[0].substring(0, 3).toUpperCase(),
+          `${options[1]} Token`,
+          options[1].substring(0, 3).toUpperCase(),
+        ],
+      });
+
+      setTxHash(hash);
+
+      // Step 2: Wait for transaction receipt
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+      // Step 3: Parse MarketCreated event from logs
+      if (receipt && receipt.logs) {
+        const parsedLogs = parseEventLogs({
+          abi: FACTORY_ABI,
+          logs: receipt.logs,
+        });
+
+        const marketCreatedEvent = parsedLogs.find(
+          (log) => log.eventName === "MarketCreated"
+        ) as any;
+
+        if (marketCreatedEvent) {
+          setMarketData({
+            market: marketCreatedEvent.args.market,
+            yesToken: marketCreatedEvent.args.yesToken,
+            noToken: marketCreatedEvent.args.noToken,
+          });
+        }
+      }
+
+      onSubmit?.({ question, options, validTill, yesPrice, noPrice });
+      setSubmitted(true);
+      setTimeout(() => handleClose(), 4000);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Failed to create market";
+      setErrors({ question: errorMsg });
+      setLoading(false);
+    }
+  };
+
+  const buyToken = async (tokenType: "yes" | "no"): Promise<void> => {
+    if (!walletClient || !publicClient || !address || !marketData) {
+      setErrors({ question: "Market data or wallet not available" });
+      return;
+    }
+
+    const amount = tokenType === "yes" ? yesPrice : noPrice;
+    if (!amount) {
+      setErrors({ question: `No ${tokenType.toUpperCase()} price set` });
+      return;
+    }
+
+    setBuyingToken(tokenType);
+
+    try {
+      // Convert to USDC decimals (6 decimals for USDC)
+      const amountInDecimals = BigInt(Math.floor(Number(amount) * 1e6));
+
+      // Step 1: Approve USDC spending on market contract
+      const approveTx = await walletClient.writeContract({
+        address: USDC_ADDRESS,
+        abi: USDC_ABI,
+        functionName: "approve",
+        args: [marketData.market as `0x${string}`, amountInDecimals],
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash: approveTx });
+
+      // Step 2: Deposit to market (no parameters - encrypted transaction)
+      const depositTx = await walletClient.writeContract({
+        address: marketData.market as `0x${string}`,
+        abi: MARKET_ABI,
+        functionName: "deposit",
+        args: [],
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash: depositTx });
+
+      setBuyTxHash(depositTx);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : `Failed to buy ${tokenType.toUpperCase()} tokens`;
+      setErrors({ question: errorMsg });
+    } finally {
+      setBuyingToken(null);
+    }
   };
 
   const today: string = new Date().toISOString().split("T")[0];
@@ -369,8 +783,8 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  padding: "56px 32px",
-                  gap: "14px",
+                  padding: "32px",
+                  gap: "20px",
                   animation: "cm-pop 0.4s ease",
                 }}
               >
@@ -395,12 +809,322 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
                     />
                   </svg>
                 </div>
-                <p style={{ fontSize: "16px", fontWeight: 600, color: "#0a0a0a", margin: 0 }}>
-                  Market Created!
-                </p>
-                <p style={{ fontSize: "14px", color: "#71717a", margin: 0 }}>
-                  Your prediction market is now live.
-                </p>
+
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: "16px", fontWeight: 600, color: "#0a0a0a", margin: 0 }}>
+                    Market Created Successfully!
+                  </p>
+                  <p style={{ fontSize: "13px", color: "#71717a", margin: "4px 0 0" }}>
+                    Your prediction market is now live
+                  </p>
+                </div>
+
+                {/* Transaction Hash */}
+                {txHash && (
+                  <div
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      background: "#f4f4f5",
+                      borderRadius: "8px",
+                      border: "1px solid #e4e4e7",
+                    }}
+                  >
+                    <p style={{ fontSize: "11px", fontWeight: 600, color: "#71717a", margin: "0 0 6px" }}>
+                      TX HASH
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "11px",
+                        color: "#0a0a0a",
+                        margin: 0,
+                        fontFamily: "monospace",
+                        wordBreak: "break-all",
+                        lineHeight: "1.4",
+                      }}
+                    >
+                      {txHash}
+                    </p>
+                  </div>
+                )}
+
+                {/* Market Details from Event */}
+                {marketData ? (
+                  <div
+                    style={{
+                      width: "100%",
+                      padding: "16px",
+                      background: "#f0f5ff",
+                      borderRadius: "8px",
+                      border: "1px solid #bfdbfe",
+                    }}
+                  >
+                    <p style={{ fontSize: "11px", fontWeight: 600, color: "#0052ff", margin: "0 0 12px", textTransform: "uppercase" }}>
+                      Market Addresses
+                    </p>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {/* Market Address */}
+                      <div>
+                        <p style={{ fontSize: "10px", fontWeight: 600, color: "#71717a", margin: "0 0 4px", textTransform: "uppercase" }}>
+                          Market Contract
+                        </p>
+                        <p
+                          style={{
+                            fontSize: "11px",
+                            color: "#0a0a0a",
+                            margin: 0,
+                            fontFamily: "monospace",
+                            wordBreak: "break-all",
+                            background: "#ffffff",
+                            padding: "6px 8px",
+                            borderRadius: "4px",
+                            border: "1px solid #dbeafe",
+                            lineHeight: "1.3",
+                          }}
+                        >
+                          {marketData.market}
+                        </p>
+                      </div>
+
+                      {/* YES Token */}
+                      <div>
+                        <p style={{ fontSize: "10px", fontWeight: 600, color: "#0052ff", margin: "0 0 4px", display: "flex", alignItems: "center", gap: "4px" }}>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#0052ff" }} />
+                          YES Token
+                        </p>
+                        <p
+                          style={{
+                            fontSize: "11px",
+                            color: "#0a0a0a",
+                            margin: 0,
+                            fontFamily: "monospace",
+                            wordBreak: "break-all",
+                            background: "#ffffff",
+                            padding: "6px 8px",
+                            borderRadius: "4px",
+                            border: "1px solid #dbeafe",
+                            lineHeight: "1.3",
+                          }}
+                        >
+                          {marketData.yesToken}
+                        </p>
+                      </div>
+
+                      {/* NO Token */}
+                      <div>
+                        <p style={{ fontSize: "10px", fontWeight: 600, color: "#71717a", margin: "0 0 4px", display: "flex", alignItems: "center", gap: "4px" }}>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#71717a" }} />
+                          NO Token
+                        </p>
+                        <p
+                          style={{
+                            fontSize: "11px",
+                            color: "#0a0a0a",
+                            margin: 0,
+                            fontFamily: "monospace",
+                            wordBreak: "break-all",
+                            background: "#ffffff",
+                            padding: "6px 8px",
+                            borderRadius: "4px",
+                            border: "1px solid #dbeafe",
+                            lineHeight: "1.3",
+                          }}
+                        >
+                          {marketData.noToken}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ color: "#71717a", fontSize: "12px" }}>
+                    Loading market details...
+                  </div>
+                )}
+
+                {/* Buy Token Buttons */}
+                {marketData && !buyTxHash && (
+                  <div
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      gap: "12px",
+                      flexDirection: "column",
+                    }}
+                  >
+                    <div style={{ background: "#f0f5ff", padding: "12px", borderRadius: "8px", border: "1px solid #dbeafe" }}>
+                      <p style={{ fontSize: "11px", fontWeight: 600, color: "#0052ff", margin: "0 0 8px", textTransform: "uppercase" }}>
+                        Market Ready to Trade
+                      </p>
+                      <p style={{ fontSize: "12px", color: "#0a0a0a", margin: 0 }}>
+                        Deposit USDC to buy YES or NO outcome tokens
+                      </p>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                      <button
+                        type="button"
+                        onClick={() => buyToken("yes")}
+                        disabled={buyingToken !== null}
+                        style={{
+                          height: "48px",
+                          background: buyingToken === "yes" ? "rgba(0, 82, 255, 0.7)" : "#0052FF",
+                          color: "#ffffff",
+                          border: "none",
+                          borderRadius: "8px",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          cursor: buyingToken ? "not-allowed" : "pointer",
+                          transition: "all 0.2s ease",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "2px",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!buyingToken) (e.currentTarget as HTMLButtonElement).style.opacity = "0.88";
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!buyingToken) (e.currentTarget as HTMLButtonElement).style.opacity = "1";
+                        }}
+                      >
+                        <span style={{ fontSize: "14px", fontWeight: 700 }}>YES</span>
+                        <span style={{ fontSize: "11px", opacity: 0.9 }}>
+                          {buyingToken === "yes" ? "Processing..." : `${yesPrice} USDC`}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => buyToken("no")}
+                        disabled={buyingToken !== null}
+                        style={{
+                          height: "48px",
+                          background: buyingToken === "no" ? "rgba(113, 113, 122, 0.7)" : "#71717a",
+                          color: "#ffffff",
+                          border: "none",
+                          borderRadius: "8px",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          cursor: buyingToken ? "not-allowed" : "pointer",
+                          transition: "all 0.2s ease",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "2px",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!buyingToken) (e.currentTarget as HTMLButtonElement).style.opacity = "0.88";
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!buyingToken) (e.currentTarget as HTMLButtonElement).style.opacity = "1";
+                        }}
+                      >
+                        <span style={{ fontSize: "14px", fontWeight: 700 }}>NO</span>
+                        <span style={{ fontSize: "11px", opacity: 0.9 }}>
+                          {buyingToken === "no" ? "Processing..." : `${noPrice} USDC`}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Token Purchase Success */}
+                {buyTxHash && (
+                  <div
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      background: "#ecfdf5",
+                      borderRadius: "8px",
+                      border: "1px solid #bbf7d0",
+                      animation: "cm-slideUp 0.3s ease",
+                    }}
+                  >
+                    <p style={{ fontSize: "11px", fontWeight: 600, color: "#059669", margin: "0 0 4px" }}>
+                      ✓ DEPOSIT CONFIRMED
+                    </p>
+                    <p style={{ fontSize: "10px", color: "#047857", margin: "0 0 6px" }}>
+                      Your collateral has been deposited to the market
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "10px",
+                        color: "#0a0a0a",
+                        margin: 0,
+                        fontFamily: "monospace",
+                        wordBreak: "break-all",
+                        lineHeight: "1.4",
+                        background: "#f0fdf4",
+                        padding: "6px",
+                        borderRadius: "4px",
+                      }}
+                    >
+                      TX: {buyTxHash}
+                    </p>
+                  </div>
+                )}
+
+                {errors.question && buyingToken && (
+                  <div
+                    style={{
+                      width: "100%",
+                      padding: "12px",
+                      background: "#fee2e2",
+                      borderRadius: "8px",
+                      border: "1px solid #fca5a5",
+                      animation: "cm-slideUp 0.3s ease",
+                    }}
+                  >
+                    <p style={{ fontSize: "11px", fontWeight: 600, color: "#dc2626", margin: "0 0 4px" }}>
+                      ✗ DEPOSIT FAILED
+                    </p>
+                    <p style={{ fontSize: "10px", color: "#991b1b", margin: 0 }}>
+                      {errors.question}
+                    </p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div style={{ display: "flex", gap: "12px", paddingTop: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    style={{
+                      flex: 1,
+                      padding: "12px",
+                      background: "#e4e4e7",
+                      color: "#0a0a0a",
+                      border: "none",
+                      borderRadius: "8px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.open(`/markets/${marketData?.market || ""}`, "_blank")}
+                    disabled={!marketData}
+                    style={{
+                      flex: 1,
+                      padding: "12px",
+                      background: marketData ? "#0052FF" : "#bfdbfe",
+                      color: "#ffffff",
+                      border: "none",
+                      borderRadius: "8px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      cursor: marketData ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    📊 View Market
+                  </button>
+                </div>
               </div>
             ) : (
               <>
@@ -612,11 +1336,11 @@ export default function CreateMarketModal({ onSubmit }: CreateMarketModalProps) 
                     className="cm-actions-row"
                     style={{ display: "flex", gap: "10px", paddingTop: "4px" }}
                   >
-                    <button type="button" className="cm-cancel-btn" onClick={handleClose}>
+                    <button type="button" className="cm-cancel-btn" onClick={handleClose} disabled={loading}>
                       Cancel
                     </button>
-                    <button type="submit" className="cm-submit-btn">
-                      Create Market
+                    <button type="submit" className="cm-submit-btn" disabled={loading} style={{ opacity: loading ? 0.7 : 1 }}>
+                      {loading ? "Creating Market..." : "Create Market"}
                     </button>
                   </div>
                 </form>
